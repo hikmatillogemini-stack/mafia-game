@@ -11,8 +11,12 @@ ALTER TABLE players
 ADD CONSTRAINT user_id_required_for_humans 
 CHECK (is_bot = true OR user_id IS NOT NULL);
 
--- New RLS Policy: Authenticated users can add bots
-CREATE POLICY "Authenticated users can add bots"
+-- Drop old INSERT policies
+DROP POLICY IF EXISTS "Users can insert themselves as players" ON players;
+DROP POLICY IF EXISTS "Authenticated users can add bots" ON players;
+
+-- New RLS Policy: Allow users to insert themselves OR bots
+CREATE POLICY "Users can insert players and bots"
     ON players FOR INSERT
     WITH CHECK (
         (is_bot = true AND auth.uid() IS NOT NULL) 
@@ -41,3 +45,6 @@ SELECT
     is_bot,
     created_at
 FROM players;
+
+-- Grant permissions on view
+GRANT SELECT ON public_players TO anon, authenticated;
