@@ -17,6 +17,7 @@ interface Player {
   role: string;
   is_alive: boolean;
   team: string;
+  is_bot: boolean;
 }
 
 Deno.serve(async (req) => {
@@ -32,6 +33,63 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    // Fetch players first
+    const { data: players, error: playersError } = await supabase
+      .from('players')
+      .select('id, role, is_alive, team, is_bot')
+      .eq('room_id', roomId);
+
+    if (playersError) throw playersError;
+
+    // Generate bot actions
+    const livingBots = players.filter(p => p.is_bot && p.is_alive);
+    
+    for (const bot of livingBots) {
+      // Check if bot already acted this round
+      const { data: existingAction } = await supabase
+        .from('game_actions')
+        .select('id')
+        .eq('actor_id', bot.id)
+        .eq('round_number', roundNumber)
+        .single();
+
+      if (existingAction) continue; // Bot already acted
+
+      let actionType: 'kill' | 'heal' | 'check' | null = null;
+      let targetId: string | null = null;
+
+      if (bot.role === 'mafia') {
+        actionType = 'kill';
+        const targets = players.filter(p => p.is_alive && p.team !== 'mafia' && p.id !== bot.id);
+        if (targets.length > 0) {
+          targetId = targets[Math.floor(Math.random() * targets.length)].id;
+        }
+      } else if (bot.role === 'doctor') {
+        actionType = 'heal';
+        const targets = players.filter(p => p.is_alive && p.id !== bot.id);
+        if (targets.length > 0) {
+          targetId = targets[Math.floor(Math.random() * targets.length)].id;
+        }
+      } else if (bot.role === 'detective') {
+        actionType = 'check';
+        const targets = players.filter(p => p.is_alive && p.id !== bot.id);
+        if (targets.length > 0) {
+          targetId = targets[Math.floor(Math.random() * targets.length)].id;
+        }
+      }
+
+      // Insert bot action
+      if (actionType && targetId) {
+        await supabase.from('game_actions').insert({
+          room_id: roomId,
+          actor_id: bot.id,
+          target_id: targetId,
+          action_type: actionType,
+          round_number: roundNumber
+        });
+      }
+    }
+
     // Fetch actions and players
     const [actionsRes, playersRes] = await Promise.all([
       supabase
@@ -41,7 +99,7 @@ Deno.serve(async (req) => {
         .eq('round_number', roundNumber),
       supabase
         .from('players')
-        .select('id, role, is_alive, team')
+        .select('id, role, is_alive, team, is_bot')
         .eq('room_id', roomId)
     ]);
 
@@ -49,8 +107,7 @@ Deno.serve(async (req) => {
     if (playersRes.error) throw playersRes.error;
 
     const actions = actionsRes.data as GameAction[];
-    const players = playersRes.data as Player[];
-    const playerMap = new Map(players.map(p => [p.id, p]));
+    const playerMap = new Map(playersRes.data.map(p => [p.id, p]));
 
     // Priority 1: Identify blocked players
     const blockedPlayers = new Set(

@@ -96,6 +96,29 @@ function App() {
     leaveRoom();
   };
 
+  const addBot = async () => {
+    if (!roomId) return;
+
+    const botNames = ['Bot-Alpha', 'Bot-Bravo', 'Bot-Charlie', 'Bot-Delta', 'Bot-Echo', 'Bot-Foxtrot'];
+    const randomName = botNames[Math.floor(Math.random() * botNames.length)] + '-' + Math.floor(Math.random() * 1000);
+
+    try {
+      const { error } = await supabase
+        .from('players')
+        .insert({
+          room_id: roomId,
+          nickname: randomName,
+          is_bot: true,
+          user_id: null,
+          is_alive: true
+        });
+
+      if (error) throw error;
+    } catch (err) {
+      alert('Failed to add bot: ' + err.message);
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
@@ -186,15 +209,25 @@ function App() {
           {/* Action Panel */}
           <div className="bg-slate-800 border-t border-slate-700">
             {room?.phase === 'lobby' && (
-              <div className="p-4 text-center">
+              <div className="p-4 text-center space-y-3">
                 <p className="text-slate-400 mb-4">Waiting for players... ({players.length} joined)</p>
-                {isHost && players.length >= 4 && (
-                  <button
-                    onClick={startGame}
-                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition flex items-center gap-2 mx-auto"
-                  >
-                    <Play size={20} /> Start Game
-                  </button>
+                {isHost && (
+                  <div className="flex gap-2 justify-center">
+                    <button
+                      onClick={addBot}
+                      className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg transition flex items-center gap-2"
+                    >
+                      🤖 Add AI Bot
+                    </button>
+                    {players.length >= 4 && (
+                      <button
+                        onClick={startGame}
+                        className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition flex items-center gap-2"
+                      >
+                        <Play size={20} /> Start Game
+                      </button>
+                    )}
+                  </div>
                 )}
                 {isHost && players.length < 4 && (
                   <p className="text-red-500">Need at least 4 players to start</p>
