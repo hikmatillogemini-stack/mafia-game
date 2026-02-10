@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../supabaseClient';
 
 export const useRealtimeGame = (roomId) => {
   const [room, setRoom] = useState(null);
