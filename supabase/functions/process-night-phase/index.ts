@@ -16,6 +16,7 @@ interface Player {
   id: string;
   role: string;
   is_alive: boolean;
+  team: string;
 }
 
 Deno.serve(async (req) => {
@@ -40,7 +41,7 @@ Deno.serve(async (req) => {
         .eq('round_number', roundNumber),
       supabase
         .from('players')
-        .select('id, role, is_alive')
+        .select('id, role, is_alive, team')
         .eq('room_id', roomId)
     ]);
 
@@ -95,12 +96,34 @@ Deno.serve(async (req) => {
         .in('id', Array.from(killedPlayers));
       
       if (error) throw error;
+      
+      // Update player map with new death status
+      killedPlayers.forEach(id => {
+        const player = playerMap.get(id);
+        if (player) player.is_alive = false;
+      });
     }
 
-    // Update room phase to day
+    // Check win conditions
+    const alivePlayers = Array.from(playerMap.values()).filter(p => p.is_alive);
+    const mafiaCount = alivePlayers.filter(p => p.team === 'mafia').length;
+    const townCount = alivePlayers.filter(p => p.team === 'town').length;
+
+    let winner = null;
+    let newPhase = 'day';
+
+    if (mafiaCount >= townCount) {
+      winner = 'MAFIA';
+      newPhase = 'finished';
+    } else if (mafiaCount === 0) {
+      winner = 'TOWN';
+      newPhase = 'finished';
+    }
+
+    // Update room phase
     const { error: roomError } = await supabase
       .from('rooms')
-      .update({ phase: 'day' })
+      .update({ phase: newPhase })
       .eq('id', roomId);
 
     if (roomError) throw roomError;
@@ -111,7 +134,10 @@ Deno.serve(async (req) => {
       healed: Array.from(healedPlayers),
       killed: Array.from(killedPlayers),
       detective_results: detectiveResults,
-      phase: 'day'
+      phase: newPhase,
+      winner,
+      alive_mafia: mafiaCount,
+      alive_town: townCount
     };
 
     return new Response(JSON.stringify(summary), {
