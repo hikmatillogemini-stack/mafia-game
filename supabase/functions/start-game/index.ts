@@ -44,6 +44,10 @@ Deno.serve(async (req) => {
   try {
     const { roomId } = await req.json();
 
+    if (!roomId) {
+      throw new Error('roomId is required');
+    }
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''

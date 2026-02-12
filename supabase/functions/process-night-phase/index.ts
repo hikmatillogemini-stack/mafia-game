@@ -28,6 +28,10 @@ Deno.serve(async (req) => {
   try {
     const { roomId, roundNumber } = await req.json();
 
+    if (!roomId || !roundNumber) {
+      throw new Error('roomId and roundNumber are required');
+    }
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
